@@ -432,3 +432,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+//自定义，递归打印页表信息,仿造freewalk
+void re_vmprint(pagetable_t pagetable,int layer)
+{
+  for(int i = 0; i < 512; i++)
+  {
+    pte_t pte = pagetable[i];
+    //还有子索引，要递归
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0)
+    {
+
+      for(int point=layer;point>0;point--)
+      printf(".. ");
+      //深度不同， ..数不同
+
+      printf("..%d: pte %p pa %p\n",i,pte,(pte >> 10) << 12);//打印地址
+      uint64 child=PTE2PA(pte);
+      re_vmprint((pagetable_t)child,layer+1);
+    } 
+
+    //没有子索引了，直接输出
+    else if(pte & PTE_V)
+     printf(".. .. ..%d: pte %p pa %p\n",i,pte,(pte >> 10) << 12);//打印地址
+  }
+}
+
+void vmprint(pagetable_t pagetable)
+{
+    printf("page table %p\n", pagetable);
+    re_vmprint(pagetable,0);//调用自定义函数，实现递归打印
+}
+
