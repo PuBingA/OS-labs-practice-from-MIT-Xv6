@@ -36,3 +36,6 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+
+entry("sigalarm"); 
+entry("sigreturn");  #自行添加两个函数调用

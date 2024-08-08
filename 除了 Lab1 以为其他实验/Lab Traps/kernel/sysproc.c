@@ -70,6 +70,9 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+
+  //自己添加对 backtrace的调用
+  backtrace();
   return 0;
 }
 
@@ -94,4 +97,33 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+//按要求只返回0
+uint64 sys_sigreturn(void)
+{
+  struct proc *p=myproc();
+  memmove(p->trapframe, p->copy_trapframe, sizeof(struct trapframe));//拷贝trapframe
+  p->passtime=0;
+  p->copy_trapframe=0; //重置相关参数
+
+  return p->trapframe->a0;
+}
+
+//添加 sigalarm函数，读取时间间隔和handler指针
+uint64 sys_sigalarm(void)
+{
+  int interval;
+  uint64 handler;
+  struct proc *p;
+
+  argint(0,&interval);
+  argaddr(1,&handler);//读取时间间隔和指针
+
+  p=myproc();
+  p->interval=interval;
+  p->handler=handler;
+
+  return 0;
+
 }

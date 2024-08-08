@@ -1,0 +1,28 @@
+问题1：Which registers contain arguments to functions? For example, which register holds 13 in main's call to printf?
+
+答：浏览生成的call.asm 可知 a0-a7都包含参数。 文件第45行 li  a2 13 指出 a2完成该步
+
+问题2：Where is the call to function f in the assembly code for main? Where is the call to g? (Hint: the compiler may inline functions.)
+
+答：在main 函数中 44行 printf("%d %d\n", f(8)+1, 13); 调用了额 f（）函数，而f()函数 最后返回 g() 函数，因此两个函数都在这边进行调用
+
+问题3：At what address is the function printf located?
+
+答：第50行  jalr 1536(ra) # 630 <printf>，得出 地址为 1536+0x30
+
+问题4：What value is in the register ra just after the jalr to printf in main?
+
+答：在jalr 指令 执行后 PC+4=0x34+4=0x38
+
+问题5:Run the following code.
+
+	unsigned int i = 0x00646c72;
+	printf("H%x Wo%s", 57616, &i);
+      
+What is the output? Here's an ASCII table that maps bytes to characters.
+
+答： 输出  HE110 World
+
+问题6：In the following code, what is going to be printed after 'y='? (note: the answer is not a specific value.) Why does this happen?
+
+答：执行完毕， y= a2寄存器里面的值

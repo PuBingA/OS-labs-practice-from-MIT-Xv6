@@ -141,6 +141,14 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  //3个自定义数值初始化
+  p->interval =0;
+  p->handler=0;
+  p->passtime=0; 
+
+  //拷贝也要初始化
+  p->copy_trapframe=0;
+
   return p;
 }
 

@@ -76,6 +76,22 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
+  //加入中断操作
+  if(which_dev==2)
+  {
+    if(p->interval!=0&&++p->passtime ==p->interval)
+    {
+
+      p->copy_trapframe=p->trapframe+512; //覆盖前拷贝进去
+      memmove(p->copy_trapframe,p->trapframe,sizeof(struct trapframe));
+      p->trapframe->epc=p->handler;
+
+    }//已过时间到达中断间隔，重置已过时间中断返回
+  }
+
+
+
+
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
