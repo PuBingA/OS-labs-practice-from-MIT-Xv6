@@ -17,6 +17,7 @@ struct entry *table[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
 
+pthread_mutex_t locks[NBUCKET]; //定义互斥锁
 
 double
 now()
@@ -50,9 +51,14 @@ void put(int key, int value)
   if(e){
     // update the existing key.
     e->value = value;
-  } else {
+  } 
+  else 
+  {
+    pthread_mutex_lock(&locks[i]);//有线程使用时候上锁
     // the new is new.
     insert(key, value, &table[i], table[i]);
+
+    pthread_mutex_unlock(&locks[i]);//使用完毕后解锁
   }
 
 }
@@ -117,6 +123,10 @@ main(int argc, char *argv[])
   for (int i = 0; i < NKEYS; i++) {
     keys[i] = random();
   }
+
+  //初始化锁
+  for(int i=0;i<NBUCKET;i++)
+  pthread_mutex_init(&locks[i],NULL);
 
   //
   // first the puts

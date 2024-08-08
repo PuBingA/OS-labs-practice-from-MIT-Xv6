@@ -1,4 +1,5 @@
 // Saved registers for kernel context switches.
+//要使用到这个进行线程切换，寄存器的恢复
 struct context {
   uint64 ra;
   uint64 sp;
@@ -17,6 +18,9 @@ struct context {
   uint64 s10;
   uint64 s11;
 };
+
+
+
 
 // Per-CPU state.
 struct cpu {
