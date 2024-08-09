@@ -21,12 +21,17 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} kmem[NCPU];  //每个CPU分配的链表核锁,改成数组形式,数组容量为CPU个数
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  for(int i=0;i<NCPU;i++)
+  {
+    char str[10];
+	  snprintf(str,9,"kmem %d",i); //hint最后一条要求的格式化输出
+	  initlock(&kmem[i].lock, str);//每个CPU都分配锁
+  }
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,11 +61,50 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  //hint指出要先关闭中断，才能获取id
+  push_off();
+  int id= cpuid();
+  pop_off();
+
+  acquire(&kmem[id].lock);
+  r->next = kmem[id].freelist;
+  kmem[id].freelist = r;
+  release(&kmem[id].lock);
 }
+
+
+
+ //借用前半部分页
+struct run *borrow(int id){
+	struct run *r,*slow, *fast;
+	for(int i=0;i<NCPU;i++){
+		if(i == id)
+			continue;
+		acquire(&kmem[i].lock);
+		if(kmem[i].freelist){
+     		slow = kmem[i].freelist;fast = kmem[i].freelist->next; //快慢指针 将链表化为两部分
+     		r = slow;
+     		if(fast == 0||fast->next == 0){
+     			release(&kmem[i].lock);
+     			continue;
+     		}
+     		while(fast != slow){
+     			if(fast == 0||fast->next == 0)
+     				break;
+     			slow = slow->next;
+     			fast = fast->next->next;
+     		}
+			r = slow->next;
+     		slow->next = 0;
+     		release(&kmem[i].lock);
+     		return r;
+
+		}
+		release(&kmem[i].lock);
+	}
+	return 0;
+}
+
 
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
@@ -69,12 +113,23 @@ void *
 kalloc(void)
 {
   struct run *r;
+  
+  //获得id安全操作
+  push_off();
+  int id = cpuid();
+  pop_off();
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+  acquire(&kmem[id].lock);
+  r=kmem[id].freelist;
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmem[id].freelist = r->next;
+  else //如果没有空闲块，就要借用其他 kmem中链表空闲块
+   r=borrow(id);
+  
+
+  if(r)
+    kmem[id].freelist = r->next;
+  release(&kmem[id].lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
