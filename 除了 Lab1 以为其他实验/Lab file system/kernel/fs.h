@@ -2,6 +2,8 @@
 // Both the kernel and user programs use this header file.
 
 
+#define max_symlink 10 //为了终止成环的syslink
+
 #define ROOTINO  1   // root i-number
 #define BSIZE 1024  // block size
 
@@ -24,9 +26,13 @@ struct superblock {
 
 #define FSMAGIC 0x10203040
 
-#define NDIRECT 12
+#define NDIRECT 11  //按要求，将直接快号-1  用来作为二级间接块表
 #define NINDIRECT (BSIZE / sizeof(uint))
-#define MAXFILE (NDIRECT + NINDIRECT)
+#define DOUBLE_NIDIRECT (NINDIRECT * NINDIRECT) //新增二级间接块表总数 为 一级的平方
+
+#define MAXFILE (NDIRECT + NINDIRECT+DOUBLE_NIDIRECT)    //最大值改变了，因为加入了二级间接索引
+
+
 
 // On-disk inode structure
 struct dinode {
@@ -35,7 +41,7 @@ struct dinode {
   short minor;          // Minor device number (T_DEVICE only)
   short nlink;          // Number of links to inode in file system
   uint size;            // Size of file (bytes)
-  uint addrs[NDIRECT+1];   // Data block addresses
+  uint addrs[NDIRECT+1+1];   // Data block addresses  因为宏定义减1
 };
 
 // Inodes per block.
