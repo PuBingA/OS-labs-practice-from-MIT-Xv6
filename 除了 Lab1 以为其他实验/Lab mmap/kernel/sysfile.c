@@ -484,3 +484,148 @@ sys_pipe(void)
   }
   return 0;
 }
+
+
+
+//mmmap操作
+uint64 sys_mmap(void)
+{
+  uint64 addr;
+  int length;
+  int prot;
+  int flags;
+  int fd;
+  struct file *file;
+  int offset;
+
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0 || 
+     argint(2, &prot) < 0 || argint(3, &flags) < 0 || 
+     argfd(4, &fd, &file) < 0 || argint(5, &offset) < 0)
+    return 0xffffffffffffffff;     //错误处理
+
+  if(!file->writable&&(prot&PROT_WRITE)&&(flags==MAP_SHARED))
+  return 0xffffffffffffffff;     //错误处理
+
+  struct proc *p=myproc();
+  if(p->sz>MAXVA-length)
+  return 0xffffffffffffffff;     //错误处理
+
+  for(int i=0;i<VMA_SIZE;i++)
+  {
+    if(p->vma[i].if_used==0)
+    {
+      p->vma[i].if_used=1;
+      p->vma[i].addr=p->sz;
+      p->vma[i].length=length;
+      p->vma[i].prot=prot;
+      p->vma[i].flags=flags;
+      p->vma[i].fd=fd;
+      p->vma[i].file=file;
+      p->vma[i].offset=offset;
+
+      filedup(file);
+      p->sz=p->sz+length; //二者长度不能一样
+
+      return p->vma[i].addr;
+    }//VMA没用的位置进行初始化
+  }
+
+  //如果全都被占用，返回错误
+  return 0xffffffffffffffff;
+
+}
+
+uint64 sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+
+   if(argaddr(0, &addr) || argint(1, &length))
+       return -1;
+
+    struct proc *p=myproc();
+
+    for(int i=0;i<VMA_SIZE;i++)
+    {
+      if((p->vma[i].addr == addr)||(p->vma[i].addr + p->vma[i].length == addr + length)) 
+      {
+        if(p->vma[i].addr == addr)
+        p->vma[i].length+=length; //与后面中和
+        p->vma[i].length -= length; //地址左移，释放
+
+      
+        if((p->vma[i].flags & MAP_SHARED) && (p->vma[i].prot & PROT_WRITE))
+          filewrite(p->vma[i].file, addr, length); //特殊情况，要写回文件
+
+
+        uvmunmap(p->pagetable, addr, length/PGSIZE, 1);
+
+          if(p->vma[i].length==0)
+          {
+            fileclose(p->vma[i].file);//该文件已清除
+            p->vma[i].if_used=0;//空间空出，变为未使用
+          }
+      }
+    }
+    return 0;
+}
+
+void sys_mmap_lazy()
+{
+  uint64 va =r_stval();
+  struct proc *p = myproc();
+    if(va >= p->sz || PGROUNDUP(va) == PGROUNDDOWN(p->trapframe->sp)) 
+    p->killed = 1;
+    else
+    {
+      
+      for(int i = 0; i < VMA_SIZE; ++i)
+      {
+        
+        if(p->vma[i].if_used && p->vma[i].addr <= va && va < (p->vma[i].addr + p->vma[i].length))
+        {
+
+          uint64 pa = (uint64)kalloc();
+          if(pa == 0)
+          {
+            p->killed = 1;
+            break;
+          }
+          memset((void *)pa, 0, PGSIZE);
+
+          struct file * file = p->vma[i].file;
+
+          ilock(file->ip);
+        
+          //偏移量 
+          int offset = PGROUNDDOWN(va - p->vma[i].addr);
+          int cnt = readi(file->ip, 0, pa, offset, PGSIZE);
+
+          if(cnt == 0)
+          {
+            iunlock(file->ip);
+            kfree((void *)pa);
+            p->killed = 1;
+            break;
+          }
+
+          iunlock(file->ip);
+
+
+          int flags = PTE_U;
+          if(p->vma[i].prot & PROT_READ) flags |= PTE_R;
+          if(p->vma[i].prot & PROT_WRITE) flags |= PTE_W;
+          if(p->vma[i].prot & PROT_EXEC) flags |= PTE_X;
+
+          if(mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, pa, flags)  < 0)
+          {
+            kfree((void *)pa);
+            p->killed = 1;
+          }
+          
+          break;
+        }
+      }
+    }
+}
+

@@ -5,6 +5,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include"fcntl.h"
+
+
 
 struct spinlock tickslock;
 uint ticks;
@@ -33,6 +36,9 @@ trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
+
+
+extern void sys_mmap_lazy();
 void
 usertrap(void)
 {
@@ -67,7 +73,13 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+   //自己添加
+  else if(r_scause() == 13 || r_scause() == 15)
+  {
+    sys_mmap_lazy();
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;

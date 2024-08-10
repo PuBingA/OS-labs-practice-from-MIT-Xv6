@@ -82,6 +82,22 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+//定义VMA，记录mmap映射内存
+struct VMA
+{
+  int if_used; //是否被用
+  uint64 addr; //地址
+  int length;//长度
+  int prot;
+  int flags;
+  struct file* file;//指向文件
+  int fd; //描述符
+  int offset;
+
+};
+
+#define VMA_SIZE 16 //规定VMA最大大小
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -105,4 +121,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  struct VMA vma[VMA_SIZE]; //开设16个VMA
+  uint64 current_vma; //当前vma开到地址位
 };

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -114,6 +115,8 @@ allocproc(void)
       release(&p->lock);
     }
   }
+
+
   return 0;
 
 found:
@@ -140,7 +143,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  
   return p;
 }
 
@@ -312,6 +315,14 @@ fork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
+  for(int i = 0; i < VMA_SIZE; ++i)
+  {
+    if(p->vma[i].if_used)
+    {
+      memmove(&(np->vma[i]), &(p->vma[i]), sizeof(p->vma[i]));
+      filedup(p->vma[i].file);
+    }
+  } //子进程和父进程状态相同
   np->state = RUNNABLE;
   release(&np->lock);
 
@@ -345,6 +356,18 @@ exit(int status)
     panic("init exiting");
 
   // Close all open files.
+
+  for(int i=0;i<VMA_SIZE;i++) //关闭进程相关的VMA映射
+  {
+    if(p->vma[i].if_used)
+    {
+       if((p->vma[i].flags & MAP_SHARED) && (p->vma[i].prot & PROT_WRITE))
+        filewrite(p->vma[i].file, p->vma[i].addr, p->vma[i].length);
+      fileclose(p->vma[i].file);
+      uvmunmap(p->pagetable, p->vma[i].addr,  p->vma[i].length/PGSIZE, 1);
+      p->vma[i].if_used = 0;
+    }
+  }
   for(int fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd]){
       struct file *f = p->ofile[fd];
